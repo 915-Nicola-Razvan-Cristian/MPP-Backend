@@ -54,6 +54,16 @@ async function initializeDatabase() {
         `);
         console.log('Table "votes" created or already exists.');
 
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS news (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('Table "news" created or already exists.');
+
         const res = await client.query('SELECT COUNT(*) as count FROM candidates');
         if (res.rows[0].count === '0') {
             console.log('Seeding candidates...');

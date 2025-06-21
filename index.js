@@ -4,13 +4,20 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const { faker } = require('@faker-js/faker');
 const db = require('./database');
+const { LocalStorage } = require('node-localstorage');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
+const localStorage = new LocalStorage('./data');
 
 app.use(cors());
 app.use(express.json());
+
+// Initialize news in localStorage if it doesn't exist
+if (!localStorage.getItem('news')) {
+    localStorage.setItem('news', JSON.stringify([]));
+}
 
 db.initializeDatabase();
 
@@ -105,6 +112,40 @@ app.post('/api/vote', async (req, res) => {
         res.status(200).json({ message: 'Vote cast successfully.' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to cast vote' });
+    }
+});
+
+// GET all news
+app.get('/api/news', (req, res) => {
+    try {
+        const news = JSON.parse(localStorage.getItem('news') || '[]');
+        res.json(news);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch news' });
+    }
+});
+
+// POST a new news article
+app.post('/api/news', (req, res) => {
+    try {
+        const { title, content } = req.body;
+        if (!title || !content) {
+            return res.status(400).json({ error: 'Title and content are required' });
+        }
+        
+        const news = JSON.parse(localStorage.getItem('news') || '[]');
+        const newArticle = {
+            id: Date.now(),
+            title,
+            content,
+            created_at: new Date().toISOString()
+        };
+        
+        news.push(newArticle);
+        localStorage.setItem('news', JSON.stringify(news));
+        res.status(201).json(newArticle);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create news article' });
     }
 });
 
