@@ -7,6 +7,9 @@ const pool = new Pool({
   database: 'electiondb_9jy7',
   password: 'SJXm083txGmGhUK4QAKO7kzlvq0ZwVi0',
   port: 5432,
+  ssl: {
+    rejectUnauthorized: false, // Use `true` if you have a valid certificate
+},
 });
 
 const initialCandidates = [
