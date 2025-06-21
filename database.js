@@ -72,6 +72,8 @@ async function initializeDatabase() {
         `);
         console.log('Table "election_results" created or already exists.');
 
+        
+
         await client.query(`
             CREATE TABLE IF NOT EXISTS news (
                 id SERIAL PRIMARY KEY,
@@ -92,6 +94,10 @@ async function initializeDatabase() {
             console.log('Candidates seeded.');
         }
         
+        await client.query('TRUNCATE TABLE votes, voters, election_results RESTART IDENTITY');
+
+
+
         await client.query('COMMIT');
 
     } catch (error) {
