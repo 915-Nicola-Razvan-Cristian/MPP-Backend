@@ -203,7 +203,7 @@ app.post('/api/election/simulate', async (req, res) => {
 
     } catch (error) {
         console.error('Election simulation failed:', error);
-        res.status(500).json({ error: 'Election simulation failed' });
+        res.status(500).json({ error: `Election simulation failed + ${error}` });
     }
 });
 
