@@ -115,6 +115,109 @@ app.post('/api/vote', async (req, res) => {
     }
 });
 
+// ELECTION SIMULATION
+app.get('/api/election/results', async (req, res) => {
+    try {
+        const { rows } = await db.query('SELECT * FROM election_results ORDER BY round_number, vote_count DESC');
+        const results = {
+            round1: rows.filter(r => r.round_number === 1),
+            round2: rows.filter(r => r.round_number === 2),
+        };
+        res.json(results);
+    } catch (error) {
+        console.error('Failed to fetch election results:', error);
+        res.status(500).json({ error: 'Failed to fetch election results' });
+    }
+});
+
+app.post('/api/election/simulate', async (req, res) => {
+    try {
+        // ---- RESET ----
+        console.log('Starting new election simulation...');
+        await db.query('TRUNCATE TABLE votes, voters, election_results RESTART IDENTITY');
+        
+        // ---- ROUND 1 ----
+        console.log('Simulating Round 1...');
+        const { rows: candidatesR1 } = await db.query('SELECT * FROM candidates');
+        const voters = Array.from({ length: 100 }, (_, i) => ({ cnp: `SIM${Date.now()}${i}`.padEnd(13, '0') }));
+        
+        const voterInserts = voters.map(v => db.query('INSERT INTO voters (cnp) VALUES ($1) RETURNING id', [v.cnp]));
+        const insertedVoters = await Promise.all(voterInserts);
+        const voterIds = insertedVoters.map(result => result.rows[0].id);
+
+        const voteInsertsR1 = voterIds.map(voterId => {
+            const randomCandidate = candidatesR1[Math.floor(Math.random() * candidatesR1.length)];
+            return db.query('INSERT INTO votes (voter_id, candidate_id) VALUES ($1, $2)', [voterId, randomCandidate.id]);
+        });
+        await Promise.all(voteInsertsR1);
+
+        const { rows: resultsR1 } = await db.query(`
+            SELECT candidate_id, c.name as candidate_name, COUNT(v.id) as vote_count
+            FROM votes v
+            JOIN candidates c ON c.id = v.candidate_id
+            GROUP BY candidate_id, c.name
+            ORDER BY vote_count DESC
+        `);
+
+        const resultInsertsR1 = resultsR1.map(r => 
+            db.query('INSERT INTO election_results (round_number, candidate_id, candidate_name, vote_count) VALUES ($1, $2, $3, $4)', 
+            [1, r.candidate_id, r.candidate_name, r.vote_count])
+        );
+        await Promise.all(resultInsertsR1);
+        console.log('Round 1 finished.');
+
+        // ---- ROUND 2 ----
+        console.log('Simulating Round 2...');
+        const topTwo = resultsR1.slice(0, 2);
+        if (topTwo.length < 2) {
+            return res.status(200).json({ message: 'Simulation complete. Not enough candidates for a second round.' });
+        }
+
+        await db.query('TRUNCATE TABLE votes, voters RESTART IDENTITY');
+        const newVoterInserts = voters.map(v => db.query('INSERT INTO voters (cnp) VALUES ($1) RETURNING id', [v.cnp]));
+        const newInsertedVoters = await Promise.all(newVoterInserts);
+        const newVoterIds = newInsertedVoters.map(result => result.rows[0].id);
+
+        const voteInsertsR2 = newVoterIds.map(voterId => {
+            const randomCandidate = topTwo[Math.floor(Math.random() * topTwo.length)];
+            return db.query('INSERT INTO votes (voter_id, candidate_id) VALUES ($1, $2)', [voterId, randomCandidate.candidate_id]);
+        });
+        await Promise.all(voteInsertsR2);
+
+        const { rows: resultsR2 } = await db.query(`
+            SELECT candidate_id, c.name as candidate_name, COUNT(v.id) as vote_count
+            FROM votes v
+            JOIN candidates c ON c.id = v.candidate_id
+            GROUP BY candidate_id, c.name
+            ORDER BY vote_count DESC
+        `);
+
+        const resultInsertsR2 = resultsR2.map(r => 
+            db.query('INSERT INTO election_results (round_number, candidate_id, candidate_name, vote_count) VALUES ($1, $2, $3, $4)', 
+            [2, r.candidate_id, r.candidate_name, r.vote_count])
+        );
+        await Promise.all(resultInsertsR2);
+        console.log('Round 2 finished.');
+
+        res.status(200).json({ message: 'Election simulation completed successfully.' });
+
+    } catch (error) {
+        console.error('Election simulation failed:', error);
+        res.status(500).json({ error: 'Election simulation failed' });
+    }
+});
+
+app.post('/api/election/reset', async (req, res) => {
+    try {
+        await db.query('TRUNCATE TABLE votes, voters, election_results RESTART IDENTITY');
+        res.status(200).json({ message: 'Election simulation has been reset.' });
+    } catch (error) {
+        console.error('Failed to reset election:', error);
+        res.status(500).json({ error: 'Failed to reset election' });
+    }
+});
+
+
 // GET all news
 app.get('/api/news', (req, res) => {
     try {

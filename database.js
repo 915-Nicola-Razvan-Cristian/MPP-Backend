@@ -15,7 +15,14 @@ const pool = new Pool({
 const initialCandidates = [
     { name: 'Nicusor Dan', party: 'Independent', description: 'A candidate with a vision for the future.', image: 'https://media.b1tv.ro/unsafe/1260x709/smart/filters:contrast(5):format(jpeg):quality(80)/http://www.b1tv.ro/wp-content/uploads/2025/05/nicusor-dan-3-2-1920x1028.jpg' },
     { name: 'Gabriela Firea', party: 'Social Democratic Party', description: 'Focused on social policies and city development.', image: 'https://cdn.knd.ro/media/image/2021/04/15/2e5e1b643a18a59815041a798547379f5a7d6569.jpg?width=1200&height=&trim=0,0,0,0' },
-    { name: 'Cristian Popescu Piedone', party: 'Humanist Social Liberal Party', description: 'Advocates for the people of the city.', image: 'https://static.hyperflash.ro/media/2021/05/cristian-popescu-piedone-1-scaled-1-1024x576.jpg' }
+    { name: 'Cristian Popescu Piedone', party: 'Humanist Social Liberal Party', description: 'Advocates for the people of the city.', image: 'https://static.hyperflash.ro/media/2021/05/cristian-popescu-piedone-1-scaled-1-1024x576.jpg' },
+    { name: 'Sebastian Burduja', party: 'National Liberal Party', description: 'A focus on technology and innovation.', image: 'https://static.hyperflash.ro/media/2021/05/sebastian-burduja-pnl-1024x576.jpg' },
+    { name: 'Mihai Enache', party: 'Alliance for the Union of Romanians', description: 'Strong national identity and values.', image: 'https://static.hyperflash.ro/media/2021/05/mihai-enache-aur-1024x576.jpg' },
+    { name: 'Diana Șoșoacă', party: 'S.O.S. Romania', description: 'A vocal and energetic candidate.', image: 'https://static.hyperflash.ro/media/2021/05/diana-sosoaca-sos-romania-1024x576.jpg' },
+    { name: 'Vlad Voiculescu', party: 'USR', description: 'Reforming the system from within.', image: 'https://static.hyperflash.ro/media/2021/05/vlad-voiculescu-usr-1024x576.jpg' },
+    { name: 'Traian Băsescu', party: 'PMP', description: 'A former president running for mayor.', image: 'https://static.hyperflash.ro/media/2021/05/traian-basescu-pmp-1024x576.jpg' },
+    { name: 'Călin Popescu-Tăriceanu', party: 'ALDE', description: 'An experienced political figure.', image: 'https://static.hyperflash.ro/media/2021/05/calin-popescu-tariceanu-alde-1024x576.jpg' },
+    { name: 'Dan Barna', party: 'USR', description: 'A vision for a modern Romania.', image: 'https://static.hyperflash.ro/media/2021/05/dan-barna-usr-1024x576.jpg' }
 ];
 
 async function initializeDatabase() {
@@ -53,6 +60,17 @@ async function initializeDatabase() {
             )
         `);
         console.log('Table "votes" created or already exists.');
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS election_results (
+                id SERIAL PRIMARY KEY,
+                round_number INT NOT NULL,
+                candidate_id INT NOT NULL,
+                candidate_name VARCHAR(255) NOT NULL,
+                vote_count INT NOT NULL
+            )
+        `);
+        console.log('Table "election_results" created or already exists.');
 
         await client.query(`
             CREATE TABLE IF NOT EXISTS news (
