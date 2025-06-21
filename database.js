@@ -83,7 +83,7 @@ async function initializeDatabase() {
         console.log('Table "news" created or already exists.');
 
         const res = await client.query('SELECT COUNT(*) as count FROM candidates');
-        if (res.rows[0].count === '0') {
+        if (res.rows[0].count === '3') {
             console.log('Seeding candidates...');
             for (const candidate of initialCandidates) {
                 await client.query('INSERT INTO candidates (name, party, description, image) VALUES ($1, $2, $3, $4)', 
