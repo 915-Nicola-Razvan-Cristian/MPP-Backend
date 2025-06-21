@@ -139,7 +139,13 @@ app.post('/api/election/simulate', async (req, res) => {
         // ---- ROUND 1 ----
         console.log('Simulating Round 1...');
         const { rows: candidatesR1 } = await db.query('SELECT * FROM candidates');
-        const voters = Array.from({ length: 100 }, (_, i) => ({ cnp: `SIM$${i}`.padEnd(13, '0') }));
+        
+        // Generate 100 unique 13-digit CNPs
+        const cnpSet = new Set();
+        while (cnpSet.size < 100) {
+            cnpSet.add(faker.string.numeric(13));
+        }
+        const voters = Array.from(cnpSet).map(cnp => ({ cnp }));
         
         const voterInserts = voters.map(v => db.query('INSERT INTO voters (cnp) VALUES ($1) RETURNING id', [v.cnp]));
         const insertedVoters = await Promise.all(voterInserts);
