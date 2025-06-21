@@ -12,7 +12,9 @@
     "@faker-js/faker": "^9.8.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "mysql2": "^3.14.1",
     "node-localstorage": "^3.0.5",
+    "pg": "^8.16.2",
     "ws": "^8.18.2"
   }
 }

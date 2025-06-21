@@ -1,67 +1,111 @@
 const express = require('express');
 const cors = require('cors');
-const { LocalStorage } = require('node-localstorage');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const { faker } = require('@faker-js/faker');
+const db = require('./database');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-const localStorage = new LocalStorage('./data');
-
 app.use(cors());
 app.use(express.json());
 
-const initialCandidates = [
-    { id: 1, name: 'John Doe', party: 'Independent', description: 'A candidate with a vision for the future.', image: 'https://media.b1tv.ro/unsafe/1260x709/smart/filters:contrast(5):format(jpeg):quality(80)/http://www.b1tv.ro/wp-content/uploads/2025/05/nicusor-dan-3-2-1920x1028.jpg' },
-    { id: 2, name: 'Jane Smith', party: 'Green Party', description: 'Focused on environmental policies and sustainability.', image: 'https://media.b1tv.ro/unsafe/1260x709/smart/filters:contrast(5):format(jpeg):quality(80)/http://www.b1tv.ro/wp-content/uploads/2025/05/nicusor-dan-3-2-1920x1028.jpg' },
-    { id: 3, name: 'Sam Wilson', party: 'Libertarian', description: 'Advocates for minimal government and individual freedoms.', image: 'https://media.b1tv.ro/unsafe/1260x709/smart/filters:contrast(5):format(jpeg):quality(80)/http://www.b1tv.ro/wp-content/uploads/2025/05/nicusor-dan-3-2-1920x1028.jpg' }
-];
-// localStorage.removeItem('candidates')
-
-if (!localStorage.getItem('candidates')) {
-    localStorage.setItem('candidates', JSON.stringify(initialCandidates));
-}
+db.initializeDatabase();
 
 // GET all candidates
-app.get('/api/candidates', (req, res) => {
-    console.log("Getting candidates")
-    const candidates = JSON.parse(localStorage.getItem('candidates'));
-    res.json(candidates);
+app.get('/api/candidates', async (req, res) => {
+    try {
+        const { rows } = await db.query('SELECT * FROM candidates');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch candidates' });
+    }
 });
 
 // POST a new candidate
-app.post('/api/candidates', (req, res) => {
-    const candidates = JSON.parse(localStorage.getItem('candidates'));
-    const newCandidate = { ...req.body, id: Date.now() };
-    candidates.push(newCandidate);
-    localStorage.setItem('candidates', JSON.stringify(candidates));
-    res.status(201).json(newCandidate);
+app.post('/api/candidates', async (req, res) => {
+    try {
+        const { name, party, description, image } = req.body;
+        const { rows } = await db.query(
+            'INSERT INTO candidates (name, party, description, image) VALUES ($1, $2, $3, $4) RETURNING id',
+            [name, party, description, image]
+        );
+        res.status(201).json({ id: rows[0].id, ...req.body });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to create candidate' });
+    }
 });
 
 // PUT (update) a candidate
-app.put('/api/candidates/:id', (req, res) => {
-    let candidates = JSON.parse(localStorage.getItem('candidates'));
-    const candidateId = parseInt(req.params.id, 10);
-    const updatedCandidate = req.body;
-
-    candidates = candidates.map(candidate =>
-        candidate.id === candidateId ? { ...candidate, ...updatedCandidate } : candidate
-    );
-
-    localStorage.setItem('candidates', JSON.stringify(candidates));
-    res.json(candidates.find(c => c.id === candidateId));
+app.put('/api/candidates/:id', async (req, res) => {
+    try {
+        const { name, party, description, image } = req.body;
+        const { id } = req.params;
+        await db.query(
+            'UPDATE candidates SET name = $1, party = $2, description = $3, image = $4 WHERE id = $5',
+            [name, party, description, image, id]
+        );
+        res.json({ id: parseInt(id), ...req.body });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update candidate' });
+    }
 });
 
 // DELETE a candidate
-app.delete('/api/candidates/:id', (req, res) => {
-    let candidates = JSON.parse(localStorage.getItem('candidates'));
-    const candidateId = parseInt(req.params.id, 10);
-    candidates = candidates.filter(candidate => candidate.id !== candidateId);
-    localStorage.setItem('candidates', JSON.stringify(candidates));
-    res.status(204).send();
+app.delete('/api/candidates/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db.query('DELETE FROM candidates WHERE id = $1', [id]);
+        res.status(204).send();
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete candidate' });
+    }
+});
+
+// Voter Registration
+app.post('/api/register', async (req, res) => {
+    try {
+        const { cnp } = req.body;
+        if (!cnp || cnp.length !== 13) {
+            return res.status(400).json({ error: 'Invalid CNP' });
+        }
+        
+        const { rows: [voter] } = await db.query('SELECT * FROM voters WHERE cnp = $1', [cnp]);
+        if (voter) {
+            return res.json({ ...voter, exists: true });
+        }
+        
+        const { rows } = await db.query('INSERT INTO voters (cnp) VALUES ($1) RETURNING id, cnp, has_voted', [cnp]);
+        res.status(201).json({ ...rows[0], exists: false });
+
+    } catch (error) {
+        res.status(500).json({ error: 'Registration failed' });
+    }
+});
+
+// Vote
+app.post('/api/vote', async (req, res) => {
+    try {
+        const { voter_id, candidate_id } = req.body;
+        
+        const { rows: [voter] } = await db.query('SELECT * FROM voters WHERE id = $1', [voter_id]);
+        if (!voter) {
+            return res.status(404).json({ error: 'Voter not found.' });
+        }
+        if (voter.has_voted) {
+            return res.status(403).json({ error: 'This voter has already voted.' });
+        }
+
+        await db.query('INSERT INTO votes (voter_id, candidate_id) VALUES ($1, $2)', [voter_id, candidate_id]);
+        await db.query('UPDATE voters SET has_voted = TRUE WHERE id = $1', [voter_id]);
+        
+        res.status(200).json({ message: 'Vote cast successfully.' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to cast vote' });
+    }
 });
 
 let dataInterval;
